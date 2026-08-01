@@ -17,7 +17,7 @@ from app.rag.ambiguity_detector import AmbiguityDetector
 from app.rag.course_display_names import COURSE_DISPLAY_NAMES
 from app.rag.document_display_names import DOCUMENT_DISPLAY_NAMES
 from app.rag.retriever_service import RetrieverService
-from langchain_google_genai.chat_models import ChatGoogleGenerativeAIError
+
 
 logger = logging.getLogger(__name__)
 
@@ -203,7 +203,7 @@ class RAGService:
                     question
                 )
 
-            except ChatGoogleGenerativeAIError as e:
+            except Exception  as e:
                 logger.exception("Question rewriting failed: %s", e)
 
                 # Fall back to the original question
@@ -341,7 +341,7 @@ class RAGService:
                 print(f"\nModel attempt {attempt + 1} failed.")
 
                 # No more models left
-                if attempt == 2:
+                if attempt == get_model_count() - 1:
 
                     return ChatResponse(
                         answer=(
