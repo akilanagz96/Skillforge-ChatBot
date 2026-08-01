@@ -1,6 +1,6 @@
 from langchain_core.documents import Document
 
-from app.rag.retriever import get_retriever
+from app.rag.retriever import get_relevant_documents
 
 
 class RetrieverService:
@@ -20,9 +20,10 @@ class RetrieverService:
 
         if course_name:
 
-            retriever = get_retriever(course_name=course_name)
-
-            course_docs = retriever.invoke(question)
+            course_docs = get_relevant_documents(
+                query=question,
+                course_name=course_name,
+            )
 
             print(f"\nCourse Filter : {course_name}")
             print(f"Course Docs   : {len(course_docs)}")
@@ -38,9 +39,10 @@ class RetrieverService:
 
         if document_type:
 
-            retriever = get_retriever(document_type=document_type)
-
-            policy_docs = retriever.invoke(question)
+            policy_docs = get_relevant_documents(
+                query=question,
+                document_type=document_type,
+            )
 
             print(f"\nPolicy Filter : {document_type}")
             print(f"Policy Docs   : {len(policy_docs)}")
@@ -66,11 +68,12 @@ class RetrieverService:
         unique = {}
 
         for doc in docs:
+
             key = (
                 doc.metadata.get("source"),
                 doc.page_content,
             )
+
             unique[key] = doc
 
         return list(unique.values())
-    

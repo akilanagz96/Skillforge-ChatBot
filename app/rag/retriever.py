@@ -1,48 +1,43 @@
+from langchain_core.documents import Document
+
 from app.config import settings
-from app.rag.vector_store import get_vector_store
 from app.rag.document_map import DOCUMENT_MAP
+from app.rag.embeddings import get_embedding
+from app.rag.supabase_store import match_documents
 
 
-def get_retriever(
+def get_relevant_documents(
+    query: str,
     course_name: str | None = None,
     document_type: str | None = None,
-):
+) -> list[Document]:
 
-    vector_store = get_vector_store()
+    embedding = get_embedding(query)
 
-    search_kwargs = {
-        "k": settings.TOP_K
-    }
+    source = None
 
-    # --------------------------------------------------
-    # Course-specific retrieval
-    # --------------------------------------------------
-
-    if course_name:
-
-        search_kwargs["filter"] = {
-            "course_name": course_name
-        }
-
-    # --------------------------------------------------
-    # Policy / document retrieval
-    # --------------------------------------------------
-
-    elif document_type:
-
+    if document_type:
         sources = DOCUMENT_MAP.get(document_type)
 
         if sources:
+            source = sources[0]
 
-            search_kwargs["filter"] = {
-                "source": sources[0]
-            }
-
-    # --------------------------------------------------
-    # Return Retriever
-    # --------------------------------------------------
-
-    return vector_store.as_retriever(
-        search_type=settings.SEARCH_TYPE,
-        search_kwargs=search_kwargs,
+    response = match_documents(
+        embedding=embedding,
+        match_count=settings.TOP_K,
+        course_name=course_name,
+        source=source,
     )
+
+    docs = []
+
+    for row in response.data:
+
+        docs.append(
+            Document(
+                page_content=row["content"],
+                metadata=row["metadata"],
+            )
+        )
+
+    return docs

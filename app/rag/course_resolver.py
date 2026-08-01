@@ -1,4 +1,4 @@
-from app.rag.vector_store import get_vector_store
+from app.rag.course_catalog_data import COURSES
 from app.rag.course_display_names import (
     COURSE_DISPLAY_NAMES,
     COURSE_ALIASES,
@@ -9,45 +9,29 @@ class CourseResolver:
 
     def __init__(self):
 
-        vector_store = get_vector_store()
-
-        data = vector_store.get(include=["metadatas"])
-
         self.course_names = sorted(
-            {
-                metadata["course_name"]
-                for metadata in data["metadatas"]
-                if metadata.get("course_name")
-            },
+            COURSES,
             key=len,
             reverse=True,
         )
 
-        # Build searchable terms for each course
         self.search_terms = {}
 
         for course_name in self.course_names:
 
-            terms = set()
+            terms = {course_name}
 
-            # Internal name
-            terms.add(course_name)
-
-            # Display name
             display_name = COURSE_DISPLAY_NAMES.get(course_name)
 
             if display_name:
-
                 terms.add(display_name)
 
-                # Short version without "Professional Program"
                 short_name = display_name.replace(
                     " Professional Program",
                     ""
                 )
                 terms.add(short_name)
 
-            # Aliases
             for alias in COURSE_ALIASES.get(course_name, []):
                 terms.add(alias)
 
@@ -57,79 +41,47 @@ class CourseResolver:
                 reverse=True,
             )
 
-        print(self.search_terms)
-
-    def resolve(self, question: str) -> str | None:
+    def resolve(self, question: str):
         """
-        Return the first course mentioned in the question.
+        Return the first matching course, or None.
         """
-        matches = self.resolve_all(question)
+        question = question.lower()
 
-        return matches[0] if matches else None
+        for course_name, terms in self.search_terms.items():
+            for term in terms:
+                if term.lower() in question:
+                    return course_name
 
-    def resolve_all(self, question: str) -> list[str]:
+        return None
+
+    def resolve_all(self, question: str):
         """
-        Return all courses mentioned in the question.
+        Return all matching courses.
         """
-
-        question_lower = question.lower()
+        question = question.lower()
 
         matches = []
 
         for course_name, terms in self.search_terms.items():
-
-            for term in terms:
-
-                if term.lower() in question_lower:
-
-                    matches.append(course_name)
-                    break
+            if any(term.lower() in question for term in terms):
+                matches.append(course_name)
 
         return matches
 
-    def find_partial_matches(self, question: str) -> list[str]:
+    def find_partial_matches(self, question: str):
         """
-        Find likely course matches from partial names.
+        Return courses whose search terms partially match the query.
         """
-
-        stop_words = {
-            "tell",
-            "me",
-            "about",
-            "the",
-            "a",
-            "an",
-            "course",
-            "courses",
-            "what",
-            "is",
-            "do",
-            "you",
-            "have",
-            "for",
-            "professional",
-            "program",
-            "please",
-            "give",
-            "show",
-        }
-
-        question_words = {
-            word.lower().strip("?!.,")
-            for word in question.split()
-            if word.lower().strip("?!.,") not in stop_words
-        }
-
-        if not question_words:
-            return []
+        question = question.lower()
 
         matches = []
 
         for course_name, terms in self.search_terms.items():
+            for term in terms:
+                words = term.lower().split()
 
-            searchable = " ".join(terms).lower()
-
-            if all(word in searchable for word in question_words):
-                matches.append(course_name)
+                if any(word in question for word in words):
+                    matches.append(course_name)
+                    break
 
         return matches

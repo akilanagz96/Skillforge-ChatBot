@@ -2,7 +2,12 @@ from app.memory.memory import ConversationMemory
 from app.models.response import ChatResponse
 import logging
 
-from app.rag.llm import get_llm
+from app.rag.llm import (
+    get_llm,
+    switch_model,
+    get_model_count,
+)
+
 from app.rag.prompt import get_prompt
 from app.rag.question_rewriter import QuestionRewriter
 from app.rag.course_resolver import CourseResolver
@@ -301,6 +306,8 @@ class RAGService:
             len(docs),
         )
 
+        
+
         # --------------------------------------------------
         # 10. GENERATE ANSWER
         # --------------------------------------------------
@@ -312,40 +319,49 @@ class RAGService:
             }
         )
 
-        try:
+        last_error = None
 
-            response = self.llm.invoke(messages)
+        # Try each available model at most once
+        for attempt in range(get_model_count()):
 
-            answer = response.content.strip()
+            try:
 
-        except ChatGoogleGenerativeAIError as e:
+                response = self.llm.invoke(messages)
 
-            logger.exception("Gemini API Error: %s", e)
+                answer = response.content.strip()
 
-            return ChatResponse(
-                answer=(
-                    "I'm sorry, our AI service is temporarily unavailable "
-                    "because we've reached the current API usage limit. "
-                    "Please try again in a few minutes."
-                ),
-                show_lead_popup=False,
-            )
+                break
 
-        except Exception as e:
+            except Exception as e:
 
-            logger.exception("Unexpected LLM Error: %s", e)
+                logger.exception("LLM Error: %s", e)
 
-            return ChatResponse(
-                answer=(
-                    "Something went wrong while generating the response. "
-                    "Please try again."
-                ),
-                show_lead_popup=False,
-            )
+                last_error = e
 
-        for internal_name, display_name in COURSE_DISPLAY_NAMES.items():
-            answer = answer.replace(internal_name, display_name)
+                print(f"\nModel attempt {attempt + 1} failed.")
 
+                # No more models left
+                if attempt == 2:
+
+                    return ChatResponse(
+                        answer=(
+                            "I'm sorry, our AI service is temporarily unavailable. "
+                            "Please try again later."
+                        ),
+                        show_lead_popup=False,
+                    )
+
+                print("Switching to next OpenRouter model...\n")
+
+                switch_model()
+
+                self.llm = get_llm()
+
+        else:
+
+            raise RuntimeError(
+                "LLM generation failed after trying all models."
+            ) from last_error
 
         
         # --------------------------------------------------
